@@ -1,0 +1,64 @@
+{
+    "defaultCSV":"default.csv",
+
+    "populationSize":4000,
+    "generationCount":75,
+    "survivalRatio":0.05,
+    "targetComplexity":10,
+    "parsimonyRatio":0.65,
+    "accuracyCompletion":0.02,
+    "useCCMScoring":false,
+    "weighedMutation":true,
+    "weightChance":1.5,
+    "mutationCount":2,
+    "decimalPrecision":2,
+    "minConstant":0.1,
+    "maxConstant":100.0,
+    "minRMSClamp":-50.0,
+    "maxRMSClamp":50.0,
+    "useRMSClamp":true,
+    "constantChance":50.0,
+    "changeChance":60.0,
+    "operatorChance":50.0,
+    "mutationChance":50.0,
+	"maxDuplicateRemoval":1,
+    "populationCopyCount":5,
+    "useSqrtRMS":false,
+
+    "precalculatedTree":"",
+	"verboseLogging":true,
+	"singleThreaded":false,
+	"denySimplifyOperator":"",
+
+	"useVariableDescriptors":false,
+	"variableDescriptors":[],
+
+    "fitnessAlgo":{
+        "enabled":true,
+        "populationSize":50,
+        "changeChance":75.0,
+        "sampleRatio":0.5,
+        "survivalRatio":0.1,
+        "iterationCount":10
+    },
+    "visualEvo":{
+        "enabled":true,
+        "closeOnFinish":false,
+        "clearGraphCount":5,
+		"xresolution":2048,
+		"yresolution":2048,
+		"xscale":256.0,
+		"yscale":64.0
+    },
+    "operatorFunctions":[
+        "inv", "neg", "add", "sub",
+        "mul", "div", "pow"
+    ],
+    "defaultComplexity":1,
+    "complexityWeights":{
+        "pow":[
+            ["constant", "operator", 12], ["operator", "constant", 2],
+            ["constant", "constant", 2], ["operator", "operator", 12]
+        ]
+    }
+}

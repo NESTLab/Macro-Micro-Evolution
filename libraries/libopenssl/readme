@@ -1,0 +1,4 @@
+
+This library is used only for openssl's crypto library for its random number generator functions
+
+Non-related header files have been removed
