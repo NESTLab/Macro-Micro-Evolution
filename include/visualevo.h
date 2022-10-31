@@ -34,7 +34,7 @@ public:
         virtual ~Graph();
 
         void drawAxis(); // draw the graph axis (this is automatically drawn)
-        void drawAdd(const Operators::EqPoints &points, const olc::Pixel& color=0xFFFFFFFF, const DrawType& type=LINES); // add computed graph data
+        void drawAdd(const Operators::EqPoints &points, uint32_t varIndex=0, const olc::Pixel& color=0xFFFFFFFF, const DrawType& type=LINES); // add computed graph data
         void drawClear(); // clear graph data
     };
 
@@ -42,6 +42,7 @@ public:
 
 private:
     OlcWindow* window;
+    std::mutex wMtx;
     std::thread* handle;
     uint32_t w,h;
     std::vector<GraphPtr> graphsLeak;

@@ -274,9 +274,11 @@ int main()
 		#if defined(_WIN32)
 			#define	OLC_IMAGE_GDI
 		#endif
+		/*
 		#if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || defined(__EMSCRIPTEN__)
 			#define	OLC_IMAGE_LIBPNG
 		#endif
+		*/
 	#endif
 #endif
 
@@ -930,6 +932,7 @@ namespace olc
 		void olc_ConstructFontSheet();
 		void olc_CoreUpdate();
 		void olc_PrepareEngine();
+		void olc_FreeEngine();
 		void olc_UpdateMouseState(int32_t button, bool state);
 		void olc_UpdateKeyState(int32_t key, bool state);
 		void olc_UpdateMouseFocus(bool state);
@@ -1870,10 +1873,10 @@ namespace olc
 			int y0 = radius;
 			int d = 3 - 2 * radius;
 
-			auto drawline = [&](int sx, int ex, int y)
+			auto drawline = [&](int sx, int ex, int _y)
 			{
-				for (int x = sx; x <= ex; x++)
-					Draw(x, y, p);
+				for (int _x = sx; _x <= ex; _x++)
+					Draw(_x, _y, p);
 			};
 
 			while (y0 >= x0)
@@ -2731,6 +2734,9 @@ namespace olc
 		}
 
 		platform->ThreadCleanUp();
+
+		// Cleanup specific allocated resources the engine was using
+		olc_FreeEngine();
 	}
 
 	void PixelGameEngine::olc_PrepareEngine()
@@ -2751,6 +2757,23 @@ namespace olc
 		m_tp2 = std::chrono::system_clock::now();
 	}
 
+	void PixelGameEngine::olc_FreeEngine()
+	{
+		for(auto& layer : vLayers){
+			delete layer.pDrawTarget;
+		}
+		vLayers.clear();
+
+		if(fontDecal != nullptr){
+			delete fontDecal;
+			fontDecal = nullptr;
+		}
+
+		if(fontSprite != nullptr){
+			delete fontSprite;
+			fontSprite = nullptr;
+		}
+	}
 
 	void PixelGameEngine::olc_CoreUpdate()
 	{

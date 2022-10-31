@@ -42,6 +42,7 @@ struct VisualParameters {
 	uint32_t clearCount, xresolution, yresolution;
 	float xscale, yscale;
 	std::weak_ptr<VisualEvo::Graph> graph;
+	uint32_t drawVarIndex;
 };
 
 typedef std::vector<ComplexityOp> ComplexityList;

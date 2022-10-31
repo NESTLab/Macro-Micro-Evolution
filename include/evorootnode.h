@@ -54,15 +54,15 @@ public:
 
 class RootNode {
 public:
+    static const Parameters* params;
+
     float score, complexity;
     Node* node;
-    const Parameters* params;
     std::mutex* lock;
-    std::atomic_bool complete;
     std::string form;
     NodePool pool;
 
-    RootNode(const Parameters* params);
+    RootNode();
     virtual ~RootNode();
 
 
