@@ -48,7 +48,8 @@
 		"xresolution":2048,
 		"yresolution":2048,
 		"xscale":256.0,
-		"yscale":64.0
+		"yscale":64.0,
+        "drawVariableIndex":0
     },
     "operatorFunctions":[
         "inv", "neg", "add", "sub",
