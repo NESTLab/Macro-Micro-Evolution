@@ -844,6 +844,10 @@ Node* VarNode::copy(RootNode* newRootNode) const {
 
 VTYPE VarNode::compute(const Operators::Variables& vars) const {
     if(name == CONSTANT) return value.val; // constant resolves instantly
+    if(size_t(value.val) >= vars.size()){
+        warning("found variable index out of bounds: " + std::to_string(value.val) + " reaches beyond " + std::to_string(vars.size()));
+        return VTYPE(0);
+    }
     return vars[size_t(value.val)];
 }
 

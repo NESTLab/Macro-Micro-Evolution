@@ -3,7 +3,9 @@
 using namespace NodeTypes;
 
 EvoAlgo::EvoAlgo(const Parameters* params, const Operators::EqPoints& data): params(params), data(data), generation(0), drawGraphCount(0) {
-    if(!params->fitness.use) warning("Fitness algorithm is turned off. User doesn't have brain.");
+    RootNode::params = params; // update RootNode parameter pointer access
+
+    if(!params->fitness.use) warning("Fitness algorithm is turned off!");
     if(params->singleThreaded) warning("Notice: User has enabled the single threaded feature - multi-threaded tasks will no longer run on more than 1 thread!");
     if(params->useCCMScoring) warning("useCCMScoring was enabled but this feature is currently not implemented yet");
 
@@ -36,10 +38,6 @@ EvoAlgo::EvoAlgo(const Parameters* params, const Operators::EqPoints& data): par
     */
 
     sortPopulation();
-
-    for(int i=0;i < std::min(4, int(population.size())); ++i){
-        drawGraph(*population[i]); // immediately draw the 5 best in the pre-generated population
-    }
 }
 
 EvoAlgo::~EvoAlgo() {
@@ -49,6 +47,8 @@ EvoAlgo::~EvoAlgo() {
     for(RootNode* rt : shadowPopulation){
         delete rt;
     }
+    population.clear();
+    shadowPopulation.clear();
 }
 
 // Mutate the passed root node randomly
@@ -70,9 +70,6 @@ void EvoAlgo::repopulate() {
     
     // Cross mutation + node mutation iteration - generate new mutated children
 
-    for(size_t i=cutoff;i < population.size(); ++i){
-        population[i]->complete = false; // reset complete status for thread workers
-    }
     threadGenerator(cutoff, population.size(), &workRepopulate, &cutoff); // generate workers for the repopulation - give the cutoff region
 
     debug("additional mutations for duplicates");
@@ -118,7 +115,7 @@ void EvoAlgo::workRootNodeAllocator(EvoAlgo* _this, size_t i, size_t end, size_t
     do {
         RootNode*& rt = _this->population[i];
 
-        rt = new RootNode(_this->params);
+        rt = new RootNode;
         // first node loaded from parameters
         if(i != 0 || !rt->parseRootNodeString(_this->params->precalculatedTree)){
             rt->node = (Node*) rt->createNode(RANDOM_OP, true);
@@ -130,7 +127,7 @@ void EvoAlgo::workRootNodeAllocator(EvoAlgo* _this, size_t i, size_t end, size_t
         if(_this->params->useVariableDescriptors){
             RootNode*& shdrt = _this->shadowPopulation[i];
 
-            shdrt = new RootNode(_this->params);
+            shdrt = new RootNode;
         }
         
     } while((i += spread) < end);
@@ -141,38 +138,33 @@ void EvoAlgo::workSimplifyScoreComplexity(EvoAlgo* _this, size_t i, size_t end, 
     do {
         RootNode& rt = *_this->population[i];
 
-        if(!rt.complete){
-            /// --------------------------- Iteration
-            rt.simplify(); // simplify root node
+        /// --------------------------- Iteration
+        rt.simplify(); // simplify root node
 
-            double calculatedComplexity = __DBL_MAX__; // this is the precalculated complexity - initialize to max value - always set to the lowest existing value
+        double calculatedComplexity = __DBL_MAX__; // this is the precalculated complexity - initialize to max value - always set to the lowest existing value
 
-            if(_this->params->useVariableDescriptors){ // uses variable descriptors for calculating complexity
-                RootNode& shdrt = *_this->shadowPopulation[i];
-                if(shdrt.node != nullptr) shdrt.node->freeAll();
+        if(_this->params->useVariableDescriptors){ // uses variable descriptors for calculating complexity
+            RootNode& shdrt = *_this->shadowPopulation[i];
+            if(shdrt.node != nullptr) shdrt.node->freeAll();
 
-                shdrt.node = rt.node->copy(&shdrt); // copy current root node to shadow root node for alternate complexity parsing
+            shdrt.node = rt.node->copy(&shdrt); // copy current root node to shadow root node for alternate complexity parsing
 
-                for(int var = 0; var < _this->data.numVars; ++var){
-                    if(!_this->params->variableDescriptors.count(var)) continue; // no variable descriptor found
-                    shdrt.node = shdrt.findReplace(var, _this->params->variableDescriptors.at(var)->node);
-                }
-
-                shdrt.simplify(); // re-simplify the shadow root node -             Kodi shoutout *Woof!*
-
-                calculatedComplexity = std::fmin(calculatedComplexity, shdrt.node->computeComplexity());
+            for(int var = 0; var < _this->data.numVars; ++var){
+                if(!_this->params->variableDescriptors.count(var)) continue; // no variable descriptor found
+                shdrt.node = shdrt.findReplace(var, _this->params->variableDescriptors.at(var)->node);
             }
 
-            calculatedComplexity = std::fmin(calculatedComplexity, rt.node->computeComplexity());
+            shdrt.simplify(); // re-simplify the shadow root node -             Kodi shoutout *Woof!*
 
-            rt.complexity = calculatedComplexity; // update the complexity of the rootnode to the new calculated complexity
-            rt.score = rt.node->score(_this->data);
-
-            /// --------------------------- End Iteration
-            rt.complete = true;
-        } else {
-            warning("Danger: A thread skipped work to do because the node was not ready -> workSimplifyScoreComplexity");
+            calculatedComplexity = std::fmin(calculatedComplexity, shdrt.node->computeComplexity());
         }
+
+        calculatedComplexity = std::fmin(calculatedComplexity, rt.node->computeComplexity());
+
+        rt.complexity = calculatedComplexity; // update the complexity of the rootnode to the new calculated complexity
+        rt.score = rt.node->score(_this->data);
+
+        /// --------------------------- End Iteration
 
     } while((i += spread) < end);
 }
@@ -182,14 +174,9 @@ void EvoAlgo::workScore(EvoAlgo* _this, size_t i, size_t end, size_t spread, voi
     do {
         RootNode& rt = *_this->population[i];
 
-        if(!rt.complete){
-            /// --------------------------- Iteration
-            rt.score = rt.node->score(_this->data);
-            /// --------------------------- End Iteration
-            rt.complete = true;
-        } else {
-            warning("Danger: A thread skipped work to do because the node was not ready -> workScore");
-        }
+        /// --------------------------- Iteration
+        rt.score = rt.node->score(_this->data);
+        /// --------------------------- End Iteration
 
     } while((i += spread) < end);
 }
@@ -199,14 +186,9 @@ void EvoAlgo::workFitness(EvoAlgo* _this, size_t i, size_t end, size_t spread, v
     do {
         RootNode& rt = *_this->population[i];
 
-        if(!rt.complete){
-            /// --------------------------- Iteration
-            rt.score = rt.node->score(_this->data, true); // use fitness evolution
-            /// --------------------------- End Iteration
-            rt.complete = true;
-        } else {
-            warning("Danger: A thread skipped work to do because the node was not ready -> workFitness");
-        }
+        /// --------------------------- Iteration
+        rt.score = rt.node->score(_this->data, true); // use fitness evolution
+        /// --------------------------- End Iteration
 
     } while((i += spread) < end);
 }
@@ -218,52 +200,47 @@ void EvoAlgo::workRepopulate(EvoAlgo* _this, size_t i, size_t end, size_t spread
     do {
         RootNode& rt = *_this->population[i];
 
-        if(!rt.complete){
-            /// --------------------------- Iteration
-            
-            size_t origEq = 0, copyEq = 0; // index in population for the root nodes to copy from
-            
-            rt.node->freeAll(); // free node from memory
-            rt.node = nullptr; // prevent bad pointer
-            rt.score = INFINITY; // reset score
+        /// --------------------------- Iteration
+        
+        size_t origEq = 0, copyEq = 0; // index in population for the root nodes to copy from
+        
+        rt.node->freeAll(); // free node from memory
+        rt.node = nullptr; // prevent bad pointer
+        rt.score = INFINITY; // reset score
 
-            // pick a random index for the cross mutation
-            if(_this->params->weighedMutation){ // check if pick should be weighed toward lower scores from the previous generation
-                for(size_t k=0;k<cutoff; ++k)
-                    if(Random::chance(_this->params->weightChance)) {origEq = k; break;}
-                for(size_t k=0;k<cutoff; ++k)
-                    if(Random::chance(_this->params->weightChance)) {copyEq = k; break;}
-            } else {
-                origEq = Random::randomInt(cutoff-1);
-                copyEq = Random::randomInt(cutoff-1);
-            }
-            
-            // setup original node and copy node roots for cross mutation
-            const Node* origNode = _this->population[origEq]->node, // the original root to copy
-                      * copyNode = _this->population[copyEq]->node; // the destination rot node for mutation
-            
-            // get list of all sub nodes in original node - also get list of nodes from root destination node
-            NodeList nls, ccl;
-
-            origNode->listOfNodes(nls);
-            copyNode->listOfNodes(ccl);
-            rt.node = origNode->copyMutate(&rt, // new root node to copy to
-                                           nls.all[Random::randomInt(nls.all.size() - 1)],
-                                           ccl.all[Random::randomInt(ccl.all.size() - 1)]); // crossover copy and generate new node
-            
-            rt.node->setParent(nullptr); // make sure the new root node doesn't have a parent!
-
-            if(Random::chance(_this->params->mutationChance)){ // the chance the new node will be mutated
-                _this->mutate(rt, _this->params->mutationCount); // mutate new child node
-            }
-
-            rt.calculateForm(); // pre-calculate the new form
-
-            /// --------------------------- End Iteration
-            rt.complete = true;
+        // pick a random index for the cross mutation
+        if(_this->params->weighedMutation){ // check if pick should be weighed toward lower scores from the previous generation
+            for(size_t k=0;k<cutoff; ++k)
+                if(Random::chance(_this->params->weightChance)) {origEq = k; break;}
+            for(size_t k=0;k<cutoff; ++k)
+                if(Random::chance(_this->params->weightChance)) {copyEq = k; break;}
         } else {
-            warning("Danger: A thread skipped work to do because the node was not ready -> workRepopulate");
+            origEq = Random::randomInt(cutoff-1);
+            copyEq = Random::randomInt(cutoff-1);
         }
+        
+        // setup original node and copy node roots for cross mutation
+        const Node* origNode = _this->population[origEq]->node, // the original root to copy
+                    * copyNode = _this->population[copyEq]->node; // the destination rot node for mutation
+        
+        // get list of all sub nodes in original node - also get list of nodes from root destination node
+        NodeList nls, ccl;
+
+        origNode->listOfNodes(nls);
+        copyNode->listOfNodes(ccl);
+        rt.node = origNode->copyMutate(&rt, // new root node to copy to
+                                        nls.all[Random::randomInt(nls.all.size() - 1)],
+                                        ccl.all[Random::randomInt(ccl.all.size() - 1)]); // crossover copy and generate new node
+        
+        rt.node->setParent(nullptr); // make sure the new root node doesn't have a parent!
+
+        if(Random::chance(_this->params->mutationChance)){ // the chance the new node will be mutated
+            _this->mutate(rt, _this->params->mutationCount); // mutate new child node
+        }
+
+        rt.calculateForm(); // pre-calculate the new form
+
+        /// --------------------------- End Iteration
 
     } while((i += spread) < end);
 
@@ -295,18 +272,26 @@ void EvoAlgo::drawGraph(RootNode& rt) {
     if(!graph.expired()){ // check if graph exists
         std::shared_ptr<VisualEvo::Graph> graph = this->graph.lock();
         if(params->points.points.size()){ // check if there are actually any points to calculate
+            uint32_t dvi = params->visual.drawVarIndex; // retrieve the variable index to draw
+            if(params->visual.drawVarIndex >= params->points.numVars){ // check if variable index is within range
+                warning("VisualEvo drawVariableIndex is out of range - using last variable instead");
+                dvi = data.numVars - 1;
+            }
+            
             if(!drawGraphCount++){
                 graph->drawClear(); // clear graph after clear count reached
-                graph->drawAdd(params->points, 0x3209FF10, VisualEvo::Graph::BUBBLES); // original point cloud data
+                graph->drawAdd(params->points, dvi, 0x3209FF10, VisualEvo::Graph::BUBBLES); // original point cloud data
                 debug("Refresh Graph -> " + std::to_string(params->points.points.size()) + " points of data");
             }
 
             Operators::EqPoints data;   // calculate best rootnode tree here
-            rt.computeEquation(data, params->points.points.front()[0], // from lowest x value
-                                    params->points.points.back()[0]); // to highest x value
+            data.numVars = params->points.numVars; // force update the number of variables to prevent multi-variable crashing during the computing phase
+
+            rt.computeEquation(data, params->points.points.front()[dvi], // from lowest dvi value
+                                    params->points.points.back()[dvi]); // to highest dvi value
 
             float dist = float(drawGraphCount) / float(params->visual.clearCount);
-            graph->drawAdd(data, olc::Pixel(255, dist * 255, 10 + dist*100) ); // calculated
+            graph->drawAdd(data, 0, olc::Pixel(255, dist * 255, 10 + dist*100) ); // calculated .. the computeEquation takes the dvi value, and computes the result into value 0 
         }
         // graph->draw();
         if(drawGraphCount == params->visual.clearCount) drawGraphCount = 0; // reset counter
@@ -356,9 +341,6 @@ bool EvoAlgo::iteration() {
     // update score
     timer.restart();
     debug("update score");
-    for(size_t i=0;i < population.size(); ++i){
-        population[i]->complete = false; // reset complete status for thread workers
-    }
     threadGenerator(0, population.size(), &workScore); // threaded scoring
     debug(timer.getMilliseconds());
 
@@ -374,10 +356,6 @@ bool EvoAlgo::iteration() {
     if(params->fitness.use){ // thread fitness iterator
 
         size_t bestLength = (params->popSize * params->survivalRatio);
-
-        for(size_t i=0;i < bestLength; ++i){
-            population[i]->complete = false; // reset complete status for thread workers
-        }
 
         if(params->popSave >= population.size() - bestLength){
             warning("populationCount is larger than the surviving population size. This causes an overflow to leak into the surviving population which could cause a crash.");
@@ -397,9 +375,6 @@ bool EvoAlgo::iteration() {
     timer.restart();
     debug("simplification and re-score");
 
-    for(size_t i=0;i < population.size(); ++i){
-        population[i]->complete = false; // reset complete status for thread workers
-    }
     threadGenerator(0, population.size(), &workSimplifyScoreComplexity); // generate threads to simplify and solve the complexity
     debug(timer.getMilliseconds());
 
@@ -459,6 +434,10 @@ bool EvoAlgo::iteration() {
 }
 
 void EvoAlgo::run() {
+
+    for(int i=0;i < std::min(5, int(population.size())); ++i){
+        drawGraph(*population[i]); // immediately draw the 5 best in the pre-generated population
+    }
 
     while(generation < params->generationCount) {
         if(iteration()) break;

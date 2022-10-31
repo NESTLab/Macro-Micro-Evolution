@@ -24,6 +24,7 @@ VisualEvo::~VisualEvo() {
 }
 
 bool VisualEvo::isRunning() {
+	std::scoped_lock lock(wMtx);
 	return window == nullptr ? false : (!!window->running);
 }
 
@@ -93,10 +94,12 @@ void VisualEvo::visualHandle(VisualEvo* _this) {
 		// g.reset();
 	// }
 	_this->graphsLeak.clear();
-
-	_this->window->running = false;
-	delete _this->window;
-	_this->window = nullptr;
+	{
+		std::scoped_lock lock(_this->wMtx);
+		_this->window->running = false;
+		delete _this->window;
+		_this->window = nullptr;
+	}
 
 	delete _this->agSprite;
 	_this->agSprite = nullptr;
@@ -138,7 +141,7 @@ void VisualEvo::Graph::drawAxis() {
 	evo->endCommunicate();
 }
 
-void VisualEvo::Graph::drawAdd(const Operators::EqPoints &points, const olc::Pixel& color, const DrawType& type) {
+void VisualEvo::Graph::drawAdd(const Operators::EqPoints &points, uint32_t varIndex, const olc::Pixel& color, const DrawType& type) {
 	if(evo->window == nullptr){
 		syslog::cout << "window not loaded\n";
 		return;
@@ -147,7 +150,7 @@ void VisualEvo::Graph::drawAdd(const Operators::EqPoints &points, const olc::Pix
 	std::vector<olc::vf2d> dataPoints;
 	for(size_t i=0; i < points.points.size(); ++i){
 		dataPoints.push_back({
-			float(points.points[i][0]), // x
+			float(points.points[i][varIndex]), // x
 			float(points.results[i]) 	// y
 		});
 	}
@@ -202,13 +205,14 @@ void VisualEvo::Graph::drawAdd(const Operators::EqPoints &points, const olc::Pix
 					4,// height
 					color);
 			break;
+			/* unavailable
 			case GAIO:
 				if(evo->agSprite == nullptr) break;
 				window->DrawSprite(
 					dataPoints[i].x*xscale + surface->width / 2.0f + xoff - evo->agSprite->width / 2,		// x1
 					surface->height - dataPoints[i].y*yscale - yoff - surface->height / 2.0f - evo->agSprite->height / 2, 	// y1
 					evo->agSprite);
-			break;
+			break; */
 		}
 
 
@@ -240,15 +244,14 @@ OlcWindow::OlcWindow(const std::string& title, olc::v2d_generic<uint32_t>& resol
 }
 
 OlcWindow::~OlcWindow() {
-	externalConnect.lock();
+	std::scoped_lock lock(externalConnect);
 	textures.clear();
-	externalConnect.unlock();
 }
 
 std::shared_ptr<olc::Decal> OlcWindow::makeDecal(olc::Sprite* sprite) {
 	std::shared_ptr<olc::Decal> decal;
 	do {
-		std::lock_guard lock(internalConnect);
+		std::scoped_lock lock(internalConnect);
 		if(returnValue != nullptr){
 			decal.reset((olc::Decal*)returnValue);
 			break;
@@ -272,7 +275,7 @@ bool OlcWindow::OnUserCreate() {
 bool OlcWindow::OnUserUpdate(float elapsedTime) {
 	
 	{ // event check for requested values from another thread
-		std::lock_guard lock(internalConnect);
+		std::scoped_lock lock(internalConnect);
 		switch(requestValue){
 			case NONE:
 				returnValue = nullptr;

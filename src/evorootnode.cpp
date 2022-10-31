@@ -105,7 +105,9 @@ VarNode* NodePool::allocate_VarNode() { // Instantiate the VarNode() in the arra
     return rval;
 }
 
-RootNode::RootNode(const Parameters* params): score(INFINITY), complexity(0), node(nullptr), params(params), lock(new std::mutex), complete(false), form("") {} // defualt initialization of root node
+const Parameters* RootNode::params = nullptr; // static pointer for root node parameters
+
+RootNode::RootNode(): score(INFINITY), complexity(0), node(nullptr), lock(new std::mutex), form("") {} // defualt initialization of root node
 
 RootNode::~RootNode() {
     delete lock; // free mutex
@@ -180,9 +182,10 @@ void RootNode::calculateForm() {
 void RootNode::computeEquation(Operators::EqPoints& data, double from, double to, double precision) {
 	if(data.points.size() || data.results.size()) return; // do not calculate if non-empty given points
     for(double i=from; i<to; i+=precision){
-		data.points.push_back({i}); // add range to data points
+		data.points.push_back({}); // add new variable range to data points
+        data.points.back().resize(data.numVars, i); // allocate point range for all variables - side note: this will affect the visual result greatly when using multi-variable equations
 	}
-    for(Operators::Variables& v : data.points){
+    for(const Operators::Variables& v : data.points){
         data.results.push_back( node->compute(v) ); // compute all points and update results
     }
 }

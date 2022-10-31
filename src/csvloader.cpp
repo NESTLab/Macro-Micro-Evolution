@@ -94,7 +94,7 @@ bool CSVLoader::load(Operators::EqPoints& points) {
     points.points.resize(inpoints.size(), empty); // preset the points with empty columns+rows
     points.results.resize(inpoints.size(), 0.0); // preset the results
 
-    for(size_t row = 0; row < inpoints.size(); row++){
+    for(row = 0; row < inpoints.size(); row++){
         for(size_t col = 0; col < inpoints[row].size(); col++){
             if(col == points.numVars){ // result value
                 points.results[row] = inpoints[row][col]; // copy result

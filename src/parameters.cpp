@@ -95,7 +95,7 @@ Parameters::Parameters() {
 
     // Default Fitness Function Parameters
 
-    fitness.use = true;         // the whole point to this algorithm - if you turn this off then yoy probably don't have a brain
+    fitness.use = true;         // the whole point to this algorithm - if you turn this off then there will be no sub-algorithm
     fitness.popSize = 50;       // population size of constants
     fitness.changeChance = 75;  // chance that a constant can change during mutation
     fitness.sampleSize = 0.5;   // sample size ratio of actual data that is loaded
@@ -105,11 +105,12 @@ Parameters::Parameters() {
     // Default Visual Evo Parameters
     visual.display = true;      // display the VisualEvo window
     visual.closeOnFinish = true;// close the VisualEvo window when program finishes - otherwise program will stay running until user closes window
-    visual.clearCount = 5;      // clear the graph after this number of draws
+    visual.clearCount = 5;      // clear the graph after this nuimber of draws
     visual.xresolution = 1024;  // x-axis resolution for the graph surface
     visual.yresolution = 1024;  // y-axis resolution for the graph surface
     visual.xscale = 8;          // x-scale for the graph when drawing lines/points
     visual.yscale = 8;          // y-scale for the graph when drawing lines/points
+    visual.drawVarIndex = 0;    // when multi-variable point cloud data is given, choose to draw a specific variable index
 
     useVariableDescriptors = false; // variable descriptors are used to compute a more realistic complexity when two or more variables are shared between common equations
 
@@ -248,6 +249,7 @@ void Parameters::Load(const std::string& path) {
         json::loadProperty(cfg, "yresolution", globalParams->visual.yresolution);
         json::loadProperty(cfg, "xscale", globalParams->visual.xscale);
         json::loadProperty(cfg, "yscale", globalParams->visual.yscale);
+        json::loadProperty(cfg, "drawVariableIndex", globalParams->visual.drawVarIndex);
     }
 
     json::loadProperty("useVariableDescriptors", globalParams->useVariableDescriptors);
@@ -263,9 +265,15 @@ void Parameters::Load(const std::string& path) {
                 if(itr->IsString()){
                     std::string descriptor = itr->GetString();
                     if(descriptor.empty()) continue;
+                    
+                    if(RootNode::params == nullptr) RootNode::params = globalParams;
 
-                    RootNode* rt = new RootNode(globalParams);
-                    rt->parseRootNodeString(descriptor);
+                    RootNode* rt = new RootNode;
+                    if(!rt->parseRootNodeString(descriptor)){
+                        delete rt;
+                        warning("bad variable descriptor found when parsing: \"" + descriptor + "\" is not valid");
+                        continue;
+                    }
                     globalParams->variableDescriptors.insert_or_assign(++varNum, rt); // update variable descriptor for iterated variable number
                 }
             }
@@ -394,7 +402,7 @@ void Parameters::Load(const std::string& path) {
 
 
 Parameters::~Parameters() {
-    for(auto& p : variableDescriptors){
+    for(auto& p : variableDescriptors){ // free memory of all variable descriptor RootNodes
         delete p.second;
     }
 }
